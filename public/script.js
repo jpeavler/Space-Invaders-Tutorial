@@ -82,7 +82,13 @@ class GameScene extends Phaser.Scene {
         );
     }
     create() {
-
+        this.anims.create({
+            key: "explode",
+            frames: this.anims.generateFrameNumbers("explosion"),
+            frameRate: 20,
+            repeat: 0,
+            hideOnComplete: true
+        });
     }
     update() {
 
