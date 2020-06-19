@@ -34,3 +34,50 @@ let world;
 let shipVelocityTimer = 0;
 let killerBulletId = "";
 let copyOfShipBody = { position: "", velocity: "",};
+
+const realtime = Ably.Realtime({ key: ABLY_API_KEY, echoMessages: false,});
+
+//creating uniqueIds to assign to clients on auth
+const uniqueId = function() {
+    return "id-" + totalPlayers + Math.random().toString(36).substr(2, 16);
+};
+
+app.use(express.static("js"));
+
+app.get("/auth", (req, res) => {
+    const tokenParams = { clientId: uniqueId() };
+    realtime.auth.createToeknRequest(tokenParams, function (err, tokenRequest) {
+        if(err) {
+            res.status(500).send("Error requesting token: " + JSON.stringify(err));
+        } else {
+            res.setHeader("Content-Type", "application/json");
+            res.send(JSON.stringify(tokenRequest));
+        }
+    });
+});
+
+app.get("/", (req, res) => {
+    res.header("Acess-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    if(++peopleAccessingTheWebsite > MIN_PLAYERS_TO_START_GAME) {
+        res.sendFile(_dirname + "/views/gameRoomFull.html");
+    } else {
+        res.sendFile(_dirname + "/views/intro.html");
+    }
+});
+
+app.get("/gameplay", (req, res) => {
+    res.sendFile(_dirname + "/views/index.html");
+});
+
+app.get("/winner", (req, res) => {
+    res.sendFile(_dirname + "/views/winner.html");
+});
+
+app.get("/gameover", (req, res) => {
+    res.sendFile(_dirname + "/views/gameover.html");
+});
+
+const listener = app.listen(process.env.PORT, () => {
+    console.log("Your app is listening on port " + listener.address().port);
+});
