@@ -81,3 +81,11 @@ app.get("/gameover", (req, res) => {
 const listener = app.listen(process.env.PORT, () => {
     console.log("Your app is listening on port " + listener.address().port);
 });
+
+realtime.connection.once("connected", () => {
+    gameRoom = realtime.channels.get("game-room");
+    deadPlayerCh = realtime.channels.get("dead-player");
+    gameRoom.presence.subscribe("enter", (player) => {});
+    gameRoom.presence.subscribe("leave", (player) => {});
+    deadPlayerCh.subscribe("dead-notif", (msg) => {});
+});
