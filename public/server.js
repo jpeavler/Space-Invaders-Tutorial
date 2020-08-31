@@ -20,7 +20,7 @@ let players = {};
 let playerChannels = {};
 let shipX = Math.floor((Math.random() * 1370 + 30) * 1000) / 1000;
 let shipY = SHIP_PLATFORM;
-let avatarcolors = ["green", "cyan", "yellow"];
+let avatarColors = ["green", "cyan", "yellow"];
 let avatarTypes = ["A", "B", "C"];
 let gameOn = false;
 let alivePlayers = 0;
@@ -88,4 +88,56 @@ realtime.connection.once("connected", () => {
     gameRoom.presence.subscribe("enter", (player) => {});
     gameRoom.presence.subscribe("leave", (player) => {});
     deadPlayerCh.subscribe("dead-notif", (msg) => {});
+});
+
+gameRoom.presence.subscribe("enter", (player) => {
+    let newPlayerId;
+    let newPlayerData;
+    alivePlayers++;
+    totalPlayers++;
+
+    if(totalPlayers === 1) {
+        gameTickerOn = true;
+        startGameDataTicker();
+    }
+    newPlayerId = player.clientId;
+    playerChannels[newPlayerId] = realtime.channels.get(
+        "clientChannel-" + player.clientId
+    );
+    newPlayerObject = {
+        id: newPlayerId,
+        x: Math.floor((Math.random() * 1370 + 30) * 1000) / 1000,
+        y: 20,
+        invaderAvatarType: avatarTypes[randomAvatarSelector()],
+        invatorAvatarColor: avatarColors[randomAvatarSelector()],
+        score: 0,
+        nickname: player.data,
+        isAlive: true
+    };
+    players[newPlayerId] = newPlayerObject;
+    if(totalPlayers === MIN_PLAYERS_TO_START_GAME) {
+        startShipAndBullets();
+    }
+    subscribeToPlayerInput(playerChannels[newPlayerId], newPlayerId);
+});
+
+gameRoom.presence.subscribe("leave", (player) => {
+    let leavingPlayer = player.clientId;
+    aliveplayers--;
+    totalPlayers--;
+    delete players[leavingPlayer];
+    if(totalPlayers <= 0) {
+        resetServerState();
+    }
+});
+
+deadPlayerCh.subscribe("dead-notif", (msg) => {
+    players[msg.data.deadPlayerID].isAlive = false;
+    killerBulletId = msg.data.killerBulletId;
+    alive--;
+    if(alivePlayers == 0) {
+        setTimeout(() => {
+            finishGame("");
+        }, 1000);
+    }
 });
