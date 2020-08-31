@@ -1,7 +1,91 @@
+const { create } = require("domain");
+
+let gameRoom;
+let deadPlayerCh;
+let myClientId;
+let myChannel;
+let gameOn = false;
+let players = {};
+let totalPlayers = 0;
+let latestShipPosition;
+let bulletThatShotMe;
+let bulletThatShotSomeone;
+let bulletOutOfBounds = "";
+let amIalive = false;
+let game;
+
+const BASE_SERVER_URL = "http://localhost:5000";
+const myNickname = localStorage.getItem("nickame");
+
+const realtime = Ably.Realtime({
+    authUrl: BASE_SERVER_URL + "auth"
+});
+
+realtime.connection.once("connected", () => {
+    myClientId = realtime.auth.clientId;
+    gameRoom = realtime.channels.get("game-room");
+    deadPlayerCh = realtime.channels.get("dead-player");
+    myChannel = realtime.channels.get("clientChannel-" + myClientId);
+    gameRoom.presence.enter(myNickname);
+    game = new Phaser.Game(config);
+});
+
+
+
 class GameScene extends Phaser.Scene {
     constructor() {
         super("gameScene");
-    }  
+    } 
+    create() {
+        this.avatars = {};
+        this.visibleBullets = {};
+        this.ship = {};
+        this.cursorKeys = this.input.keyboard.createCursorKeys();
+        this.anims.create({
+            key: "explode",
+            frames: this.anims.generateFrameNumbers("explosion"),
+            frameRate: 20,
+            repeat: 0,
+            hideOnComplete: true
+        });
+        gameRoom.subscribe("game-state", (msg) => {
+            if(msg.data.gameOn) {
+                gameOn = true;
+                if(msg.data.shipbody["0"]) {
+                    latestShipPosition = msg.data.shipBody["0"];
+                }
+                if(msg.data.bulletOrBlank != "") {
+                    let bulletId = msg.data.bulletOrBlank.id;
+                    this.visibleBullets[bulletId] = {
+                        id: bulletId,
+                        y: msg.data.bulletOrBlank.y,
+                        toLaunch: true,
+                        bulletSprite: ""
+                    };
+                }
+                if(msg.data.killerBulletId) {
+                    bulletThatShotSomeone = message.data.killerBulletId;
+                }
+            }
+            players = msg.data.players;
+            totalPlayers = msg.data.playerCount; 
+        });
+        gameRoom.subscribe("game-over", (msg) => {
+            gameOn = false;
+            localStorage.setItem("totalPlayers", msg.data.totalPlayers);
+            localStorage.setItem("winner", msg.data.winner);
+            localStorage.setItem("firstRunnerUp", msg.data.firstRunnerUp);
+            localStorage.setItem("secondRunnerUp", msg.data.secondRunnerUp);
+            gameRoom.unsubscribe();
+            deadPlayerCh.unsubscribe();
+            myChannel.unsubscribe();
+            if(msg.data.winner == "Nobody") {
+                window.location.replace(BASE_SERVER_URL + "/gameover");
+            } else {
+                window.location.replace(BASE_SERVER_URL + "/winner");
+            }
+        });
+    } 
     preload() {
         this.load.spritesheet(
             "avatarA",
