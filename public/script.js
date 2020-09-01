@@ -165,17 +165,103 @@ class GameScene extends Phaser.Scene {
             { frameWidth: 48, frameHeight: 48 }
         );
     }
-    create() {
-        this.anims.create({
-            key: "explode",
-            frames: this.anims.generateFrameNumbers("explosion"),
-            frameRate: 20,
-            repeat: 0,
-            hideOnComplete: true
-        });
-    }
     update() {
-
+        if(gameOn) {
+            if(this.ship.x) {
+                this.ship.x = latestShipPosition;
+            } else {
+                this.ship = this.physics.add
+                    .sprite(latestShipPosition, config.height - 32, "ship")
+                    .setOrigin(0.5, 0.5);
+                this.ship.x = latestShipPosition;
+            }
+            for(let item in this.visibleBullets) {
+                if(this.visibleBullets[item].toLaunch) {
+                    this.visibleBullets[item].toLaunch = false;
+                    this.createBullet(this.visibleBullets[item]);
+                } else {
+                    this.visibleBullets[item].bulletSprite.y -= 20;
+                }
+                if(this.visibleBullets[item].bulletSprite.y < 0 ||
+                this.visibleBullets[item].id == bulletThatShotSomeone) {
+                    this.visibleBullets[item].bulletSprite.destroy();
+                    delete this.visibleBullets[item];
+                }
+            }
+        }
+        for(let item in players) {
+            let avatarId = players[item].id;
+            if(this.avatars[avatarId] && players[item].isAlive) {
+                this.avatars[avatarId].x = players[item].x;
+                this.avatars[avatarId].y = players[item].y;
+                if(avatarId == myClientId) {
+                    document.getElementById("score").innerHTML = "Score: " + players[item].score;
+                }
+            } else if(!this.avatars[avatarId] && players[item].isAlive) {
+                if(players[item].id != myClientId) {
+                    let avatarName = "avatar" + players[item].invaderAvatarType +
+                        players[item].invaterAvatarColor;
+                    this.avatars[avatarId] = this.physics.add
+                        .sprite(players[item].x, players[item].y, avatarName)
+                        .setOrigin(0.5, 0.5);
+                    this.avatars[avatarId].setCollideWorldBounds(true);
+                    document.getElementById("join-leave-updates").innerHTML =
+                        players[avatarId].nickname + " joined";
+                    setTimeout(() => {
+                        document.getElementById("join-leave-updates").innerHTML = "";
+                    }, 2000);
+                } else if(players[item].id == myClientId) {
+                    let avatarName = "avatar" + players[item].invaderAvatarType;
+                    this.avatars[avatarId] = this.physics.add
+                        .sprite(players[item].x, players[item].y, avatarName)
+                        .setOrigin(0.5, 0.5);
+                    this.avatars[avatarId].setCollideWorldBounds(true);
+                    amIalive = true;
+                }
+            } else if(this.avatars[avatarId] && !players[item].isAlive) {
+                this.explodeAndKilled(avatarId);
+            }
+        }
+        this.publishMyInput();
+    }
+    explodeAndKilled(deadPlayerCh) {
+        this.avatars[deadPlayerId].disableBody(true, true);
+        let explosion = new Explosion(this, this.avatars[deadPlayerId].x, this.avatars[deadPlayerId].y);
+        delete this.avatars[deadPlayerId];
+        document.getElementById("join-leave-updates").innerHTML =
+            players[deadPlayerId].nickname + "died";
+        setTimeout(() => {
+            document.getElementById("join-leave-updates").innerHTML = "";
+        }, 2000);
+    }
+    publishMyInput() {
+        if(Phaser.Input.Keyboard.JustDown(this.cursorKeys.left) && amIalive) {
+            myChannel.publish("pos", {
+                keyPressed: "right",
+            });
+        }
+    }
+    createBullet(bulletObject) {
+        let bulletId = bulletObject.id;
+        this.visibleBullets[bulletId].bulletSprite = this.physics.add
+            .sprite(this.ship.x - 8, bulletObject.y, "bullet")
+            .setOrigin(0.5, 0.5);
+        //add and overlap callback if the current player is still alive
+        if(amIalive) {
+            if(this.physics.add.overlap(this.visibleBullets[bulletId].bulletSprite, this.avatars[myClientId],
+            this.publishMyDeathNews, null, this)) {
+                bulletThatShotMe = bulletId;
+            }
+        }
+    }
+    publishMyDeathNews(bullet, avatar) {
+        if(amIalive) {
+            deadPlayerCh.publish("dead-notif", {
+                killerBulletId: bulletThatShotMe,
+                deadPlayerId: myClientId,
+            });
+        }
+        amIalive = false;
     }
 }
 const config = {
